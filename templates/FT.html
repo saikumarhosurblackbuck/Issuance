@@ -424,9 +424,7 @@ body{
     <span class="filter-label"><i class="bi bi-calendar3"></i> Date:</span>
     <span class="badge bg-secondary" id="selectedDate">{{ max_date }}</span>
   </div>
-
   <div class="filter-divider"></div>
-
   <div class="filter-group">
     <span class="filter-label"><i class="bi bi-map-fill"></i> Zones:</span>
     <div id="zoneChips"></div>
@@ -1028,6 +1026,7 @@ $(window).on('beforeunload', () => {
   stopAutoRefresh();
   if (chart) chart.destroy();
 });
+
 </script>
 
 </body>
