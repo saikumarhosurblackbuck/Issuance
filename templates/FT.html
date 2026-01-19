@@ -33,7 +33,7 @@ html,body{
 body{
   display:flex;
   flex-direction:column;
-  overflow:hidden; /* keep "working layout like before" (no page scroll) */
+  overflow:hidden;
 }
 
 /* HEADER */
@@ -56,7 +56,6 @@ body{
 }
 .title{
   flex:1 1 auto;
-  /*text-align:center;*/
   font-weight:800;
   color:var(--ft-red-dark);
   font-size:20px;
@@ -213,12 +212,12 @@ body{
 .badge-average{ border-color:var(--ft-amber) !important; color:var(--ft-amber) !important; }
 .badge-projected{ border-color:var(--ft-purple) !important; color:var(--ft-purple) !important; }
 
-/* CHART AREA (flex responsive) */
+/* CHART AREA */
 .main{
   display:flex;
   flex-direction:column;
   flex:1 1 auto;
-  min-height:0; /* important for flex children */
+  min-height:0;
 }
 .chart-wrap{
   position:relative;
@@ -243,7 +242,7 @@ body{
   height:100% !important;
 }
 
-/* MODAL STYLING */
+/* MODAL */
 .modal-content{ border:none; border-radius:20px !important; overflow:hidden; }
 .modal-header{
   background:linear-gradient(135deg,var(--ft-red-dark) 0%,var(--ft-red) 100%);
@@ -322,7 +321,7 @@ body{
 }
 .modal-footer .btn-primary:hover{ transform:translateY(-1px); }
 
-/* SELECT2 CUSTOM STYLING */
+/* SELECT2 */
 .select2-container--default .select2-selection--multiple{
   border:2px solid #e5e7eb;
   border-radius:10px;
@@ -359,7 +358,7 @@ body{
   .title{ font-size:16px; }
 }
 @media(max-width:768px){
-  body{ overflow:auto; } /* allow scroll on small screens for usability */
+  body{ overflow:auto; }
   .header{
     position:sticky;
     top:0;
@@ -395,7 +394,7 @@ body{
 <!-- HEADER -->
 <div class="header">
   <img src="{{ url_for('static', filename='images/logo.png') }}" class="logo" alt="FT Logo">
-  <div class="title">FT ISSUANCE – LIVE PROJECTION</div>
+  <div class="title">FT ISSUANCE - LIVE PROJECTION</div>
   <div class="header-right">
     <div class="status-indicator">
       <div class="status-dot"></div>
@@ -419,11 +418,18 @@ body{
 
 <div class="accent"></div>
 
-<!-- FILTER CHIPS -->
+<!-- FILTER CHIPS (ORDER: DATE -> ZONE -> REGION -> CHANNEL) -->
 <div class="filter-chips" id="filterChips">
   <div class="filter-group">
     <span class="filter-label"><i class="bi bi-calendar3"></i> Date:</span>
     <span class="badge bg-secondary" id="selectedDate">{{ max_date }}</span>
+  </div>
+
+  <div class="filter-divider"></div>
+
+  <div class="filter-group">
+    <span class="filter-label"><i class="bi bi-map-fill"></i> Zones:</span>
+    <div id="zoneChips"></div>
   </div>
 
   <div class="filter-divider"></div>
@@ -452,13 +458,12 @@ body{
 </div>
 
 <div class="main">
-  <!-- CHART -->
   <div class="chart-wrap">
     <canvas id="chartCanvas"></canvas>
   </div>
 </div>
 
-<!-- FILTER MODAL -->
+<!-- FILTER MODAL (ORDER: DATE -> ZONE -> REGION -> CHANNEL) -->
 <div class="modal fade" id="filterModal" tabindex="-1">
   <div class="modal-dialog modal-md modal-dialog-centered">
     <div class="modal-content">
@@ -470,6 +475,9 @@ body{
         <label><i class="bi bi-calendar-check"></i> Select Date</label>
         <input type="date" id="date" class="form-control mb-3"
                value="{{ max_date }}" max="{{ max_date }}">
+
+        <label><i class="bi bi-map"></i> Select Zones</label>
+        <select id="zone" multiple class="form-control mb-3"></select>
 
         <label><i class="bi bi-globe"></i> Select Regions</label>
         <select id="region" multiple class="form-control mb-3"></select>
@@ -498,11 +506,11 @@ Chart.register(ChartDataLabels);
  */
 const PulseTipPlugin = {
   id: 'pulseTip',
-  afterInit(chart, args, opts){
+  afterInit(chart){
     chart.$pulseActive = true;
     const tick = () => {
       if (!chart || !chart.$pulseActive) return;
-      chart.draw(); // redraw without triggering data/scale recalcs
+      chart.draw();
       chart.$pulseRAF = requestAnimationFrame(tick);
     };
     chart.$pulseRAF = requestAnimationFrame(tick);
@@ -517,7 +525,6 @@ const PulseTipPlugin = {
       const dataset = chart.data?.datasets?.[dsIndex];
       if (!dataset) return;
 
-      // find last non-null value
       const dataArr = dataset.data || [];
       let lastIdx = -1;
       for (let i = dataArr.length - 1; i >= 0; i--){
@@ -535,13 +542,12 @@ const PulseTipPlugin = {
       const x = el.x, y = el.y;
 
       const t = Date.now();
-      const wave = (Math.sin(t / 260) + 1) / 2; // 0..1
+      const wave = (Math.sin(t / 260) + 1) / 2;
       const r1 = 6;
       const r2 = 16 * wave + 8;
 
       ctx.save();
 
-      // outer ring
       ctx.globalAlpha = 0.25 + 0.35 * (1 - wave);
       ctx.lineWidth = 3;
       ctx.strokeStyle = '#dc2626';
@@ -549,7 +555,6 @@ const PulseTipPlugin = {
       ctx.arc(x, y, r2, 0, Math.PI * 2);
       ctx.stroke();
 
-      // inner dot
       ctx.globalAlpha = 1;
       ctx.fillStyle = '#dc2626';
       ctx.strokeStyle = '#ffffff';
@@ -560,36 +565,78 @@ const PulseTipPlugin = {
       ctx.stroke();
 
       ctx.restore();
-    }catch(e){
-      // no-op
-    }
+    }catch(e){}
   }
 };
-
 Chart.register(PulseTipPlugin);
 
 let chart;
+let selectedZones = [];
 let selectedRegions = [];
 let selectedChannels = [];
 let autoRefreshInterval;
+let isUpdatingFilters = false;
 
-/* Initialize Select2 */
+/* Escape helpers */
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, s => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
+  }[s]));
+}
+function escapeJs(str){
+  return String(str).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+}
+
+/* Select2 init (safe destroy/re-init) */
 function initSelects(){
-  $('#region, #channel').select2({
+  ['#zone', '#region', '#channel'].forEach(id => {
+    const $el = $(id);
+    if ($el.hasClass('select2-hidden-accessible')) {
+      $el.select2('destroy');
+    }
+  });
+
+  $('#zone, #region, #channel').select2({
     dropdownParent: $('#filterModal'),
     closeOnSelect: false,
     width: '100%',
     placeholder: 'Select options...',
     allowClear: true
   });
-  $('#region').val(selectedRegions).trigger('change');
-  $('#channel').val(selectedChannels).trigger('change');
+
+  // re-apply selections without triggering dependency loops
+  $('#zone').val(selectedZones).trigger('change.select2');
+  $('#region').val(selectedRegions).trigger('change.select2');
+  $('#channel').val(selectedChannels).trigger('change.select2');
+}
+
+/* Build select options and keep only allowed selections */
+function rebuildSelect(selector, options, currentSelection){
+  const $s = $(selector);
+  $s.empty();
+  (options || []).forEach(v => $s.append(new Option(v, v)));
+
+  const allowed = new Set((options || []).map(x => String(x)));
+  const newSel = (currentSelection || []).filter(v => allowed.has(String(v)));
+
+  $s.val(newSel);
+  return newSel;
 }
 
 /* Update Filter Chips */
 function updateFilterChips(){
   const date = $('#date').val();
   $('#selectedDate').text(date);
+
+  const zoneChipsHTML = selectedZones.length > 0
+    ? selectedZones.map(z => `
+        <span class="filter-chip">
+          ${escapeHtml(z)}
+          <i class="bi bi-x-circle" onclick="removeZone('${escapeJs(z)}')"></i>
+        </span>
+      `).join('')
+    : '<span class="badge bg-light text-muted border">All Zones</span>';
+  $('#zoneChips').html(zoneChipsHTML);
 
   const regionChipsHTML = selectedRegions.length > 0
     ? selectedRegions.map(r => `
@@ -612,36 +659,72 @@ function updateFilterChips(){
   $('#channelChips').html(channelChipsHTML);
 }
 
-/* Escape helpers for safe chip rendering */
-function escapeHtml(str){
-  return String(str).replace(/[&<>"']/g, s => ({
-    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
-  }[s]));
-}
-function escapeJs(str){
-  return String(str).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-}
+/* Remove chips (dependency enforced) */
+function removeZone(zone){
+  selectedZones = selectedZones.filter(z => z !== zone);
+  selectedRegions = [];
+  selectedChannels = [];
 
-/* Remove individual filter */
+  $('#zone').val(selectedZones).trigger('change.select2');
+  $('#region').val([]).trigger('change.select2');
+  $('#channel').val([]).trigger('change.select2');
+
+  loadFilters();   // refresh dependent lists
+  loadChart();
+}
 function removeRegion(region){
   selectedRegions = selectedRegions.filter(r => r !== region);
-  $('#region').val(selectedRegions).trigger('change');
+  selectedChannels = [];
+
+  $('#region').val(selectedRegions).trigger('change.select2');
+  $('#channel').val([]).trigger('change.select2');
+
+  loadFilters();   // refresh dependent list (channels)
   loadChart();
 }
 function removeChannel(channel){
   selectedChannels = selectedChannels.filter(c => c !== channel);
-  $('#channel').val(selectedChannels).trigger('change');
+  $('#channel').val(selectedChannels).trigger('change.select2');
   loadChart();
 }
 
-/* Load filter options */
+/* Load filter options (DEPENDENT: zone -> region -> channel) */
 function loadFilters(){
-  $.getJSON('/filters', { date: $('#date').val() }, data => {
-    $('#region').empty();
-    $('#channel').empty();
-    data.regions.forEach(v => $('#region').append(new Option(v, v)));
-    data.channels.forEach(v => $('#channel').append(new Option(v, v)));
-    initSelects();
+  if (isUpdatingFilters) return;
+  isUpdatingFilters = true;
+
+  // current UI selections
+  selectedZones = $('#zone').val() || [];
+  selectedRegions = $('#region').val() || [];
+  selectedChannels = $('#channel').val() || [];
+
+  $.ajax({
+    url: '/filters',
+    method: 'GET',
+    dataType: 'json',
+    traditional: true, // IMPORTANT: zone=a&zone=b (Flask getlist)
+    data: {
+      date: $('#date').val(),
+      zone: selectedZones,
+      region: selectedRegions
+    },
+    success: (data) => {
+      // expected keys: zones, regions, channels
+      const zones = data.zones || [];
+      const regions = data.regions || [];
+      const channels = data.channels || [];
+
+      // rebuild selects and keep only allowed selections
+      selectedZones = rebuildSelect('#zone', zones, selectedZones);
+      selectedRegions = rebuildSelect('#region', regions, selectedRegions);
+      selectedChannels = rebuildSelect('#channel', channels, selectedChannels);
+
+      initSelects();
+      updateFilterChips(); // reflect changes immediately
+    },
+    complete: () => {
+      isUpdatingFilters = false;
+    }
   });
 }
 
@@ -653,12 +736,7 @@ function updateBadges(dates){
   $('#projectedBadge').html(`Projected: <b>Future Hours</b>`);
 }
 
-/**
- * Create a "linked projection" series:
- * - NULL until lastActualIndex
- * - At lastActualIndex: set to base[lastActualIndex] so projected dashed starts exactly at today's tip
- * - After that: use projected values
- */
+/* Linked projection */
 function buildLinkedProjection(baseArr, projectedArr){
   const n = Math.max(baseArr.length, projectedArr.length);
   const out = new Array(n).fill(null);
@@ -671,9 +749,7 @@ function buildLinkedProjection(baseArr, projectedArr){
   }
   if (lastActual < 0) return out;
 
-  // anchor to tip (same point) so it visually "links" to the solid today line
   out[lastActual] = baseArr[lastActual];
-
   for (let i = lastActual + 1; i < n; i++){
     const v = projectedArr[i];
     out[i] = (v === undefined ? null : v);
@@ -681,17 +757,18 @@ function buildLinkedProjection(baseArr, projectedArr){
   return out;
 }
 
-/* Load and render chart */
+/* Load chart */
 function loadChart(){
+  selectedZones = $('#zone').val() || [];
   selectedRegions = $('#region').val() || [];
   selectedChannels = $('#channel').val() || [];
 
   updateFilterChips();
-
   $('#refreshBtn i').addClass('loading');
 
   const params = new URLSearchParams();
   params.append('date', $('#date').val());
+  selectedZones.forEach(v => params.append('zone', v));
   selectedRegions.forEach(v => params.append('region', v));
   selectedChannels.forEach(v => params.append('channel', v));
 
@@ -701,7 +778,6 @@ function loadChart(){
       $('#refreshTime').text('Last Refresh: ' + data.last_refresh);
       updateBadges(data.dates);
 
-      // ensure "projection links to today's tip"
       const linkedProjection = buildLinkedProjection(data.base || [], data.projected || []);
 
       if (chart) chart.destroy();
@@ -802,7 +878,6 @@ function loadChart(){
               pointBackgroundColor: '#8b5cf6',
               pointBorderColor: '#fff',
               pointBorderWidth: 2,
-              // dashed + dotted feel
               borderDash: [2, 6],
               spanGaps: false,
               datalabels: {
@@ -822,13 +897,10 @@ function loadChart(){
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          layout: {
-            padding: { top: 26, bottom: 10, left: 8, right: 8 }
-          },
+          layout: { padding: { top: 26, bottom: 10, left: 8, right: 8 } },
           interaction: { mode: 'index', intersect: false },
           plugins: {
             legend: { display: false },
-            // pulse on Selected Day tip
             pulseTip: { datasetIndex: 0 },
             tooltip: {
               backgroundColor: 'rgba(0, 0, 0, 0.85)',
@@ -851,10 +923,7 @@ function loadChart(){
                 }
               }
             },
-            datalabels: {
-              // keep per-dataset configs (already set). This global block just ensures it doesn't crash.
-              clamp: true
-            }
+            datalabels: { clamp: true }
           },
           scales: {
             x: {
@@ -898,15 +967,49 @@ function stopAutoRefresh(){
   autoRefreshInterval = null;
 }
 
-/* Event handlers */
+/* Apply button */
 $('#applyFilters').on('click', () => {
-  loadFilters();
   loadChart();
 });
 
-// Optional: if date changes (inside modal), refresh filter options for that date
+/* DEPENDENCY HANDLERS (Zone -> Region -> Channel) */
 $('#date').on('change', () => {
-  loadFilters();
+  if (isUpdatingFilters) return;
+
+  selectedZones = [];
+  selectedRegions = [];
+  selectedChannels = [];
+
+  $('#zone').val([]).trigger('change.select2');
+  $('#region').val([]).trigger('change.select2');
+  $('#channel').val([]).trigger('change.select2');
+
+  loadFilters();       // refresh lists for new date
+  updateFilterChips(); // reflect immediately
+});
+
+$('#zone').on('change', () => {
+  if (isUpdatingFilters) return;
+
+  selectedZones = $('#zone').val() || [];
+  selectedRegions = [];
+  selectedChannels = [];
+
+  $('#region').val([]).trigger('change.select2');
+  $('#channel').val([]).trigger('change.select2');
+
+  loadFilters(); // refresh region/channel lists based on zone
+});
+
+$('#region').on('change', () => {
+  if (isUpdatingFilters) return;
+
+  selectedRegions = $('#region').val() || [];
+  selectedChannels = [];
+
+  $('#channel').val([]).trigger('change.select2');
+
+  loadFilters(); // refresh channel list based on region
 });
 
 $('#refreshBtn').on('click', () => {
