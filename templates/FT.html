@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FT Issuance – Live Projection</title>
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+
+<script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+
+<style>
+:root{
+  --ft-red:#dc2626;
+  --ft-red-dark:#b91c1c;
+  --ft-gray:#6b7280;
+  --ft-amber:#f59e0b;
+  --ft-purple:#8b5cf6;
+  --soft:#f8f9fa;
+}
+html,body{
+  height:100%;
+  margin:0;
+  font-family:"Segoe UI",Arial,sans-serif;
+  background:var(--soft);
+}
+body{
+  display:flex;
+  flex-direction:column;
+  overflow:hidden; /* keep "working layout like before" (no page scroll) */
+}
+
+/* HEADER */
+.header{
+  position:sticky;
+  top:0;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:12px 16px;
+  background:white;
+  z-index:100;
+  border-bottom:1px solid #f1f5f9;
+}
+.logo{
+  height:80px;
+  width:auto;
+  object-fit:contain;
+  flex:0 0 auto;
+}
+.title{
+  flex:1 1 auto;
+  /*text-align:center;*/
+  font-weight:800;
+  color:var(--ft-red-dark);
+  font-size:20px;
+  letter-spacing:0.6px;
+  line-height:1.1;
+  padding:0 8px;
+}
+.header-right{
+  flex:0 0 auto;
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+
+/* Accent */
+.accent{
+  height:3px;
+  background:linear-gradient(90deg,#fecaca 0%,var(--ft-red-dark) 50%,#fecaca 100%);
+}
+
+/* STATUS INDICATOR */
+.status-indicator{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  background:#fee2e2;
+  padding:6px 12px;
+  border-radius:20px;
+  font-size:12px;
+  font-weight:700;
+  color:#991b1b;
+  white-space:nowrap;
+}
+.status-dot{
+  width:10px;
+  height:10px;
+  background:var(--ft-red);
+  border-radius:50%;
+  animation:statusPulse 2s ease-in-out infinite;
+}
+@keyframes statusPulse{
+  0%,100%{ transform:scale(1); opacity:1; }
+  50%{ transform:scale(1.15); opacity:0.7; }
+}
+
+/* REFRESH TIME */
+#refreshTime{
+  font-size:11px;
+  color:#6b7280;
+  font-weight:600;
+  background:#f3f4f6;
+  padding:4px 10px;
+  border-radius:12px;
+  white-space:nowrap;
+}
+
+/* BUTTONS */
+.btn-outline-secondary{
+  border-color:#d1d5db;
+  color:#6b7280;
+  transition:all 0.2s ease;
+}
+.btn-outline-secondary:hover{
+  background:#f3f4f6;
+  border-color:#9ca3af;
+  color:#374151;
+  transform:translateY(-1px);
+}
+.btn-primary{
+  background:linear-gradient(135deg,var(--ft-red-dark) 0%,var(--ft-red) 100%);
+  border:none;
+  transition:all 0.2s ease;
+}
+.btn-primary:hover{
+  background:linear-gradient(135deg,#991b1b 0%,var(--ft-red-dark) 100%);
+  transform:translateY(-1px);
+}
+#refreshBtn:hover i{ transform:rotate(180deg); }
+.btn i{ transition:transform 0.2s ease; }
+
+/* FILTER CHIPS */
+.filter-chips{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  margin:12px 16px;
+  padding:10px 14px;
+  background:white;
+  border-radius:12px;
+  overflow-x:auto;
+  overflow-y:hidden;
+  flex:0 0 auto;
+  border:1px solid #f1f5f9;
+}
+.filter-chips::-webkit-scrollbar{ height:6px; }
+.filter-chips::-webkit-scrollbar-thumb{ background:#e5e7eb; border-radius:8px; }
+
+.filter-label{
+  font-size:11px;
+  font-weight:800;
+  color:#6b7280;
+  text-transform:uppercase;
+  letter-spacing:0.5px;
+  margin-right:6px;
+  white-space:nowrap;
+}
+.filter-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:5px 10px;
+  background:linear-gradient(135deg,var(--ft-red-dark) 0%,var(--ft-red) 100%);
+  color:white;
+  border-radius:20px;
+  font-size:11px;
+  font-weight:700;
+  transition:transform 0.15s ease;
+  white-space:nowrap;
+}
+.filter-chip:hover{ transform:translateY(-2px); }
+.filter-chip i{
+  font-size:11px;
+  cursor:pointer;
+  opacity:0.85;
+}
+.filter-chip i:hover{ opacity:1; }
+
+.filter-group{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex:0 0 auto;
+  white-space:nowrap;
+}
+.filter-divider{
+  width:2px;
+  height:22px;
+  background:#e5e7eb;
+  margin:0 4px;
+  flex:0 0 auto;
+}
+
+.filter-chips .badge{
+  font-size:10px;
+  padding:6px 10px;
+  background:white;
+  border:2px solid;
+  border-radius:10px;
+  font-weight:800;
+  white-space:nowrap;
+}
+.badge-selected{ border-color:var(--ft-red) !important; color:var(--ft-red) !important; }
+.badge-previous{ border-color:var(--ft-gray) !important; color:var(--ft-gray) !important; }
+.badge-average{ border-color:var(--ft-amber) !important; color:var(--ft-amber) !important; }
+.badge-projected{ border-color:var(--ft-purple) !important; color:var(--ft-purple) !important; }
+
+/* CHART AREA (flex responsive) */
+.main{
+  display:flex;
+  flex-direction:column;
+  flex:1 1 auto;
+  min-height:0; /* important for flex children */
+}
+.chart-wrap{
+  position:relative;
+  flex:1 1 auto;
+  min-height:260px;
+  margin:0 16px 16px;
+  padding:16px 16px 18px;
+  background:white;
+  border-radius:16px;
+  border:1px solid #f1f5f9;
+  overflow:hidden;
+}
+.chart-wrap::before{
+  content:"";
+  position:absolute;
+  top:0; left:0; right:0;
+  height:3px;
+  background:linear-gradient(90deg,var(--ft-red-dark) 0%,var(--ft-red) 50%,var(--ft-red-dark) 100%);
+}
+#chartCanvas{
+  width:100% !important;
+  height:100% !important;
+}
+
+/* MODAL STYLING */
+.modal-content{ border:none; border-radius:20px !important; overflow:hidden; }
+.modal-header{
+  background:linear-gradient(135deg,var(--ft-red-dark) 0%,var(--ft-red) 100%);
+  color:white;
+  border:none;
+  padding:20px 22px;
+  position:relative;
+}
+.modal-header::after{
+  content:"";
+  position:absolute;
+  bottom:0; left:0; right:0;
+  height:3px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.5),transparent);
+}
+.modal-header .modal-title{
+  font-weight:800;
+  font-size:16px;
+  letter-spacing:0.4px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.modal-header .btn-close{
+  filter:brightness(0) invert(1);
+  opacity:0.9;
+  transition:all 0.2s ease;
+}
+.modal-header .btn-close:hover{ opacity:1; transform:rotate(90deg); }
+.modal-body{ padding:22px; background:#f9fafb; }
+.modal-body label{
+  font-weight:800;
+  color:#374151;
+  font-size:12px;
+  margin-bottom:8px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  text-transform:uppercase;
+  letter-spacing:0.5px;
+}
+.modal-body label i{ font-size:16px; color:var(--ft-red-dark); }
+.modal-body .form-control{
+  border-radius:10px;
+  border:2px solid #e5e7eb;
+  padding:10px 12px;
+  font-size:14px;
+  transition:all 0.2s ease;
+}
+.modal-body .form-control:focus{
+  border-color:var(--ft-red-dark);
+  box-shadow:0 0 0 0.2rem rgba(185,28,28,0.10);
+}
+.modal-footer{
+  border:none;
+  padding:16px 22px;
+  background:#f9fafb;
+  gap:10px;
+}
+.modal-footer .btn{
+  border-radius:10px;
+  padding:10px 18px;
+  font-weight:700;
+  font-size:14px;
+  transition:all 0.2s ease;
+}
+.modal-footer .btn-light{
+  background:white;
+  border:2px solid #e5e7eb;
+  color:#6b7280;
+}
+.modal-footer .btn-light:hover{
+  background:#f3f4f6;
+  border-color:#d1d5db;
+  transform:translateY(-1px);
+}
+.modal-footer .btn-primary:hover{ transform:translateY(-1px); }
+
+/* SELECT2 CUSTOM STYLING */
+.select2-container--default .select2-selection--multiple{
+  border:2px solid #e5e7eb;
+  border-radius:10px;
+  padding:4px;
+  min-height:44px;
+}
+.select2-container--default.select2-container--focus .select2-selection--multiple{
+  border-color:var(--ft-red-dark);
+  box-shadow:0 0 0 0.2rem rgba(185,28,28,0.10);
+}
+.select2-container--default .select2-selection--multiple .select2-selection__choice{
+  background:var(--ft-red-dark);
+  border:none;
+  color:white;
+  border-radius:6px;
+  padding:4px 10px;
+  font-weight:600;
+}
+.select2-container--default .select2-selection--multiple .select2-selection__choice__remove{
+  color:white;
+  margin-right:6px;
+}
+.select2-container--default .select2-selection--multiple .select2-selection__choice__remove:hover{
+  color:#fecaca;
+}
+
+/* LOADING */
+@keyframes spin{ to{transform:rotate(360deg)} }
+.loading{ animation:spin 1s linear infinite; }
+
+/* RESPONSIVE */
+@media(max-width:992px){
+  .logo{ height:54px; }
+  .title{ font-size:16px; }
+}
+@media(max-width:768px){
+  body{ overflow:auto; } /* allow scroll on small screens for usability */
+  .header{
+    position:sticky;
+    top:0;
+    flex-wrap:wrap;
+    justify-content:space-between;
+    gap:8px;
+  }
+  .title{
+    order:3;
+    width:100%;
+    text-align:left;
+    padding:6px 0 0;
+    font-size:15px;
+  }
+  .filter-chips{
+    margin:10px 10px;
+    padding:10px 10px;
+    flex-wrap:wrap;
+    overflow-x:visible;
+  }
+  .filter-divider{ display:none; }
+  .chart-wrap{
+    margin:0 10px 12px;
+    padding:14px 12px 16px;
+    min-height:320px;
+  }
+}
+</style>
+</head>
+
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <img src="{{ url_for('static', filename='images/logo.png') }}" class="logo" alt="FT Logo">
+  <div class="title">FT ISSUANCE – LIVE PROJECTION</div>
+  <div class="header-right">
+    <div class="status-indicator">
+      <div class="status-dot"></div>
+      LIVE
+    </div>
+
+    <small id="refreshTime" class="text-muted"></small>
+
+    <button class="btn btn-outline-secondary btn-sm"
+            data-bs-toggle="modal"
+            data-bs-target="#filterModal"
+            title="Open Filters">
+      <i class="bi bi-funnel-fill"></i>
+    </button>
+
+    <button class="btn btn-primary btn-sm" id="refreshBtn" title="Refresh Data">
+      <i class="bi bi-arrow-clockwise"></i>
+    </button>
+  </div>
+</div>
+
+<div class="accent"></div>
+
+<!-- FILTER CHIPS -->
+<div class="filter-chips" id="filterChips">
+  <div class="filter-group">
+    <span class="filter-label"><i class="bi bi-calendar3"></i> Date:</span>
+    <span class="badge bg-secondary" id="selectedDate">{{ max_date }}</span>
+  </div>
+
+  <div class="filter-divider"></div>
+
+  <div class="filter-group">
+    <span class="filter-label"><i class="bi bi-geo-alt-fill"></i> Regions:</span>
+    <div id="regionChips"></div>
+  </div>
+
+  <div class="filter-divider"></div>
+
+  <div class="filter-group">
+    <span class="filter-label"><i class="bi bi-broadcast"></i> Channels:</span>
+    <div id="channelChips"></div>
+  </div>
+
+  <div class="filter-divider"></div>
+
+  <div class="filter-group">
+    <span class="filter-label">Filtered Data:</span>
+    <span class="badge badge-selected" id="selectedBadge">Selected: <b>--</b></span>
+    <span class="badge badge-previous" id="previousBadge">Previous: <b>--</b></span>
+    <span class="badge badge-average" id="averageBadge">Last 7 Days: <b>--</b></span>
+    <span class="badge badge-projected" id="projectedBadge">Projected: <b>--</b></span>
+  </div>
+</div>
+
+<div class="main">
+  <!-- CHART -->
+  <div class="chart-wrap">
+    <canvas id="chartCanvas"></canvas>
+  </div>
+</div>
+
+<!-- FILTER MODAL -->
+<div class="modal fade" id="filterModal" tabindex="-1">
+  <div class="modal-dialog modal-md modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title"><i class="bi bi-sliders"></i> Advanced Filters</h6>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <label><i class="bi bi-calendar-check"></i> Select Date</label>
+        <input type="date" id="date" class="form-control mb-3"
+               value="{{ max_date }}" max="{{ max_date }}">
+
+        <label><i class="bi bi-globe"></i> Select Regions</label>
+        <select id="region" multiple class="form-control mb-3"></select>
+
+        <label><i class="bi bi-megaphone"></i> Select Channels</label>
+        <select id="channel" multiple class="form-control"></select>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">
+          <i class="bi bi-x-circle"></i> Cancel
+        </button>
+        <button class="btn btn-primary" id="applyFilters" data-bs-dismiss="modal">
+          <i class="bi bi-check-circle"></i> Apply Filters
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+Chart.register(ChartDataLabels);
+
+/**
+ * Pulse plugin: draws a pulsing ring + dot on the LAST NON-NULL point of dataset[0] (Selected Day).
+ * - Cancels its RAF loop when chart is destroyed (no stacking / leaks).
+ */
+const PulseTipPlugin = {
+  id: 'pulseTip',
+  afterInit(chart, args, opts){
+    chart.$pulseActive = true;
+    const tick = () => {
+      if (!chart || !chart.$pulseActive) return;
+      chart.draw(); // redraw without triggering data/scale recalcs
+      chart.$pulseRAF = requestAnimationFrame(tick);
+    };
+    chart.$pulseRAF = requestAnimationFrame(tick);
+  },
+  beforeDestroy(chart){
+    chart.$pulseActive = false;
+    if (chart.$pulseRAF) cancelAnimationFrame(chart.$pulseRAF);
+  },
+  afterDatasetsDraw(chart, args, opts){
+    try{
+      const dsIndex = (opts && typeof opts.datasetIndex === 'number') ? opts.datasetIndex : 0;
+      const dataset = chart.data?.datasets?.[dsIndex];
+      if (!dataset) return;
+
+      // find last non-null value
+      const dataArr = dataset.data || [];
+      let lastIdx = -1;
+      for (let i = dataArr.length - 1; i >= 0; i--){
+        if (dataArr[i] !== null && dataArr[i] !== undefined){
+          lastIdx = i; break;
+        }
+      }
+      if (lastIdx < 0) return;
+
+      const meta = chart.getDatasetMeta(dsIndex);
+      const el = meta?.data?.[lastIdx];
+      if (!el) return;
+
+      const ctx = chart.ctx;
+      const x = el.x, y = el.y;
+
+      const t = Date.now();
+      const wave = (Math.sin(t / 260) + 1) / 2; // 0..1
+      const r1 = 6;
+      const r2 = 16 * wave + 8;
+
+      ctx.save();
+
+      // outer ring
+      ctx.globalAlpha = 0.25 + 0.35 * (1 - wave);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#dc2626';
+      ctx.beginPath();
+      ctx.arc(x, y, r2, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // inner dot
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#dc2626';
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(x, y, r1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.restore();
+    }catch(e){
+      // no-op
+    }
+  }
+};
+
+Chart.register(PulseTipPlugin);
+
+let chart;
+let selectedRegions = [];
+let selectedChannels = [];
+let autoRefreshInterval;
+
+/* Initialize Select2 */
+function initSelects(){
+  $('#region, #channel').select2({
+    dropdownParent: $('#filterModal'),
+    closeOnSelect: false,
+    width: '100%',
+    placeholder: 'Select options...',
+    allowClear: true
+  });
+  $('#region').val(selectedRegions).trigger('change');
+  $('#channel').val(selectedChannels).trigger('change');
+}
+
+/* Update Filter Chips */
+function updateFilterChips(){
+  const date = $('#date').val();
+  $('#selectedDate').text(date);
+
+  const regionChipsHTML = selectedRegions.length > 0
+    ? selectedRegions.map(r => `
+        <span class="filter-chip">
+          ${escapeHtml(r)}
+          <i class="bi bi-x-circle" onclick="removeRegion('${escapeJs(r)}')"></i>
+        </span>
+      `).join('')
+    : '<span class="badge bg-light text-muted border">All Regions</span>';
+  $('#regionChips').html(regionChipsHTML);
+
+  const channelChipsHTML = selectedChannels.length > 0
+    ? selectedChannels.map(c => `
+        <span class="filter-chip">
+          ${escapeHtml(c)}
+          <i class="bi bi-x-circle" onclick="removeChannel('${escapeJs(c)}')"></i>
+        </span>
+      `).join('')
+    : '<span class="badge bg-light text-muted border">All Channels</span>';
+  $('#channelChips').html(channelChipsHTML);
+}
+
+/* Escape helpers for safe chip rendering */
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, s => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
+  }[s]));
+}
+function escapeJs(str){
+  return String(str).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+}
+
+/* Remove individual filter */
+function removeRegion(region){
+  selectedRegions = selectedRegions.filter(r => r !== region);
+  $('#region').val(selectedRegions).trigger('change');
+  loadChart();
+}
+function removeChannel(channel){
+  selectedChannels = selectedChannels.filter(c => c !== channel);
+  $('#channel').val(selectedChannels).trigger('change');
+  loadChart();
+}
+
+/* Load filter options */
+function loadFilters(){
+  $.getJSON('/filters', { date: $('#date').val() }, data => {
+    $('#region').empty();
+    $('#channel').empty();
+    data.regions.forEach(v => $('#region').append(new Option(v, v)));
+    data.channels.forEach(v => $('#channel').append(new Option(v, v)));
+    initSelects();
+  });
+}
+
+/* Update badges */
+function updateBadges(dates){
+  $('#selectedBadge').html(`Selected: <b>${dates.base}</b>`);
+  $('#previousBadge').html(`Previous: <b>${dates.prev}</b>`);
+  $('#averageBadge').html(`Last 7 Days: <b>${dates.last7}</b>`);
+  $('#projectedBadge').html(`Projected: <b>Future Hours</b>`);
+}
+
+/**
+ * Create a "linked projection" series:
+ * - NULL until lastActualIndex
+ * - At lastActualIndex: set to base[lastActualIndex] so projected dashed starts exactly at today's tip
+ * - After that: use projected values
+ */
+function buildLinkedProjection(baseArr, projectedArr){
+  const n = Math.max(baseArr.length, projectedArr.length);
+  const out = new Array(n).fill(null);
+
+  let lastActual = -1;
+  for (let i = baseArr.length - 1; i >= 0; i--){
+    if (baseArr[i] !== null && baseArr[i] !== undefined){
+      lastActual = i; break;
+    }
+  }
+  if (lastActual < 0) return out;
+
+  // anchor to tip (same point) so it visually "links" to the solid today line
+  out[lastActual] = baseArr[lastActual];
+
+  for (let i = lastActual + 1; i < n; i++){
+    const v = projectedArr[i];
+    out[i] = (v === undefined ? null : v);
+  }
+  return out;
+}
+
+/* Load and render chart */
+function loadChart(){
+  selectedRegions = $('#region').val() || [];
+  selectedChannels = $('#channel').val() || [];
+
+  updateFilterChips();
+
+  $('#refreshBtn i').addClass('loading');
+
+  const params = new URLSearchParams();
+  params.append('date', $('#date').val());
+  selectedRegions.forEach(v => params.append('region', v));
+  selectedChannels.forEach(v => params.append('channel', v));
+
+  fetch('/chart-data?' + params.toString())
+    .then(r => r.json())
+    .then(data => {
+      $('#refreshTime').text('Last Refresh: ' + data.last_refresh);
+      updateBadges(data.dates);
+
+      // ensure "projection links to today's tip"
+      const linkedProjection = buildLinkedProjection(data.base || [], data.projected || []);
+
+      if (chart) chart.destroy();
+
+      chart = new Chart(document.getElementById('chartCanvas'), {
+        type: 'line',
+        data: {
+          labels: data.labels,
+          datasets: [
+            {
+              label: 'Selected Day',
+              data: data.base,
+              borderColor: '#dc2626',
+              backgroundColor: 'transparent',
+              borderWidth: 3,
+              tension: 0.4,
+              fill: false,
+              pointRadius: 0,
+              pointHoverRadius: 8,
+              pointBackgroundColor: '#dc2626',
+              pointBorderColor: '#fff',
+              pointBorderWidth: 2,
+              spanGaps: false,
+              datalabels: {
+                display: true,
+                formatter: v => (v !== null && v !== undefined) ? Math.round(v) : '',
+                align: 'top',
+                offset: 10,
+                color: '#dc2626',
+                font: { weight: 'bold', size: 8 },
+                backgroundColor: 'rgba(220, 38, 38, 0.10)',
+                borderRadius: 4,
+                padding: 3
+              }
+            },
+            {
+              label: 'Previous Day',
+              data: data.prev,
+              borderColor: '#6b7280',
+              backgroundColor: 'transparent',
+              borderWidth: 3,
+              tension: 0.4,
+              fill: false,
+              pointRadius: 0,
+              pointHoverRadius: 8,
+              pointBackgroundColor: '#6b7280',
+              pointBorderColor: '#fff',
+              pointBorderWidth: 2,
+              spanGaps: false,
+              datalabels: {
+                display: true,
+                formatter: v => (v !== null && v !== undefined) ? Math.round(v) : '',
+                align: 'bottom',
+                offset: 10,
+                color: '#6b7280',
+                font: { weight: 'bold', size: 8 },
+                backgroundColor: 'rgba(107, 114, 128, 0.10)',
+                borderRadius: 4,
+                padding: 3
+              }
+            },
+            {
+              label: 'Last 7 Days Avg',
+              data: data.last7,
+              borderColor: '#f59e0b',
+              backgroundColor: 'transparent',
+              borderWidth: 3,
+              tension: 0.4,
+              fill: false,
+              pointRadius: 0,
+              pointHoverRadius: 8,
+              pointBackgroundColor: '#f59e0b',
+              pointBorderColor: '#fff',
+              pointBorderWidth: 2,
+              spanGaps: false,
+              datalabels: {
+                display: true,
+                formatter: v => (v !== null && v !== undefined) ? Math.round(v) : '',
+                align: (ctx) => (ctx.dataIndex % 2 === 0 ? 'top' : 'bottom'),
+                offset: 10,
+                color: '#f59e0b',
+                font: { weight: 'bold', size: 8 },
+                backgroundColor: 'rgba(245, 158, 11, 0.10)',
+                borderRadius: 4,
+                padding: 3
+              }
+            },
+            {
+              label: 'Projected (Future)',
+              data: linkedProjection,
+              borderColor: '#8b5cf6',
+              backgroundColor: 'transparent',
+              borderWidth: 3,
+              tension: 0.4,
+              fill: false,
+              pointRadius: 0,
+              pointHoverRadius: 8,
+              pointBackgroundColor: '#8b5cf6',
+              pointBorderColor: '#fff',
+              pointBorderWidth: 2,
+              // dashed + dotted feel
+              borderDash: [2, 6],
+              spanGaps: false,
+              datalabels: {
+                display: true,
+                formatter: v => (v !== null && v !== undefined) ? Math.round(v) : '',
+                align: 'top',
+                offset: 10,
+                color: '#8b5cf6',
+                font: { weight: 'bold', size: 8 },
+                backgroundColor: 'rgba(139, 92, 246, 0.10)',
+                borderRadius: 4,
+                padding: 3
+              }
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          layout: {
+            padding: { top: 26, bottom: 10, left: 8, right: 8 }
+          },
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { display: false },
+            // pulse on Selected Day tip
+            pulseTip: { datasetIndex: 0 },
+            tooltip: {
+              backgroundColor: 'rgba(0, 0, 0, 0.85)',
+              padding: 14,
+              titleFont: { size: 14, weight: 'bold' },
+              bodyFont: { size: 13 },
+              borderColor: '#b91c1c',
+              borderWidth: 2,
+              displayColors: true,
+              callbacks: {
+                title: (ctx) => ctx?.[0]?.label ?? '',
+                label: (ctx) => {
+                  let label = ctx.dataset.label ? (ctx.dataset.label + ': ') : '';
+                  if (ctx.parsed.y !== null && ctx.parsed.y !== undefined) {
+                    label += Math.round(ctx.parsed.y).toLocaleString();
+                  } else {
+                    label += 'No data yet';
+                  }
+                  return label;
+                }
+              }
+            },
+            datalabels: {
+              // keep per-dataset configs (already set). This global block just ensures it doesn't crash.
+              clamp: true
+            }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: {
+                font: { size: 11, weight: '600' },
+                color: '#6b7280',
+                maxRotation: 0,
+                autoSkip: true,
+                maxTicksLimit: 24
+              }
+            },
+            y: {
+              grid: { color: '#f3f4f6', lineWidth: 1 },
+              ticks: {
+                font: { size: 12, weight: '600' },
+                color: '#6b7280',
+                callback: (v) => Number(v).toLocaleString()
+              },
+              beginAtZero: true
+            }
+          }
+        }
+      });
+
+      $('#refreshBtn i').removeClass('loading');
+    })
+    .catch(error => {
+      console.error('Error loading chart data:', error);
+      $('#refreshBtn i').removeClass('loading');
+    });
+}
+
+/* Auto Refresh */
+function startAutoRefresh(){
+  stopAutoRefresh();
+  autoRefreshInterval = setInterval(() => loadChart(), 30000);
+}
+function stopAutoRefresh(){
+  if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+  autoRefreshInterval = null;
+}
+
+/* Event handlers */
+$('#applyFilters').on('click', () => {
+  loadFilters();
+  loadChart();
+});
+
+// Optional: if date changes (inside modal), refresh filter options for that date
+$('#date').on('change', () => {
+  loadFilters();
+});
+
+$('#refreshBtn').on('click', () => {
+  loadChart();
+  startAutoRefresh();
+});
+
+/* Init */
+$(document).ready(function(){
+  loadFilters();
+  loadChart();
+  startAutoRefresh();
+});
+
+$(window).on('beforeunload', () => {
+  stopAutoRefresh();
+  if (chart) chart.destroy();
+});
+</script>
+
+</body>
+</html>
